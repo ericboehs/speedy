@@ -1,2 +1,2 @@
 source .env
-docker run -p $PORT:4567 -v $(readlink $SPEEDTEST_LOG_PATH || echo $PWD/$SPEEDTEST_LOG_PATH):/app/speedtest-log.json --rm -it $(docker build -q .)
+docker run -p $PORT:4567 -v $PWD/:/app --rm -it $(docker build -q .)

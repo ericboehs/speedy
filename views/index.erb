@@ -1,0 +1,141 @@
+<%
+  down_color = lambda do |speed|
+    return 'uk-text-success' if (300..1000).include? speed
+    return 'uk-text-warning' if (100..300).include? speed
+    return 'uk-text-danger' if (0..100).include? speed
+  end
+
+  up_color = lambda do |speed|
+    return 'uk-text-success' if (15..1000).include? speed
+    return 'uk-text-warning' if (10..15).include? speed
+    return 'uk-text-danger' if (0..10).include? speed
+  end
+
+  ping_color = lambda do |latency|
+    return 'uk-text-success' if (0..75).include? latency
+    return 'uk-text-warning' if (75..150).include? latency
+    return 'uk-text-danger' if (150..100000).include? latency
+  end
+
+  distance_color = lambda do |distance|
+    return 'uk-text-success' if (0..250).include? distance
+    return 'uk-text-warning' if (250..500).include? distance
+    return 'uk-text-danger' if (500..100000).include? distance
+  end
+%>
+
+<% if @results.any? %>
+  <ul class="uk-flex-center" uk-tab>
+    <li><a href="#">Table</a></li>
+    <li><a href="#">Graphs</a></li>
+  </ul>
+
+  <ul class="uk-switcher uk-margin">
+    <li>
+      <table class="uk-table tm-table-xsmall">
+        <thead>
+          <tr>
+            <th class="uk-table-shrink uk-text-meta">Time</th>
+            <th class="uk-table-shrink uk-text-meta uk-text-center">Down</th>
+            <th class="uk-table-shrink uk-text-meta uk-text-center">Up</th>
+            <th class="uk-width-1-6 uk-text-meta uk-text-center">Ping (ms)</th>
+            <th class="uk-table-expand">Server</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @results.each do |result| %>
+            <% down = (result['download'] / 1024 / 1024).to_i %>
+            <% up = (result['upload'] / 1024 / 1024).to_i %>
+            <% ping = result['server']['latency'].to_i %>
+            <% distance = result['server']['d'].to_i %>
+            <tr date="<%= Time.parse(result['timestamp']).to_i %>">
+              <td class="uk-text-muted">
+                <%= Time.parse(result['timestamp']).getlocal.strftime('%H:%M') %>
+              </td>
+              <td class="<%= down_color[down] %>">&darr;<%= down %></td>
+              <td class="<%= up_color[up] %>">&uarr;<%= up%></td>
+              <td class="<%= ping_color[ping] %> uk-text-center">
+                <%= ping %> ms
+              </td>
+              <td class="story">
+                <%= result['server']['sponsor'] %> (<span class="<%= distance_color[distance] %>"><%= distance %> km</span>)
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </li>
+    <li>
+      <canvas id="downloadChart" width="400" height="100"></canvas>
+      <canvas id="uploadChart" width="400" height="100"></canvas>
+      <canvas id="latencyChart" width="400" height="100"></canvas>
+      <hr>
+      <div class="uk-text-meta uk-text-center">Showing last 20 results.</div>
+    </li>
+  </ul>
+<% else %>
+  <p class="uk-placeholder uk-text-center">No results.</p>
+<% end %>
+
+<template id="daterow">
+  <tr><td class="uk-heading-divider" style="padding: 10px 0 5px 5px" colspan=3></td></tr>
+</template>
+
+<!-- Insert date table rows (e.g. Fri, Feb 28) -->
+<script>
+  var daterowTemplate = document.querySelector('#daterow')
+
+  Array.from(document.querySelectorAll('tr[date]')).forEach(function (el) {
+    var date = new Date(el.getAttribute('date') * 1000)
+    var prettyDate = date.toLocaleDateString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric'
+    })
+    var daterow = daterowTemplate.content.cloneNode(true)
+    daterow.querySelector('td').textContent = prettyDate
+    var alreadyInserted = Array.from(el.parentNode.children).some(e => daterow.textContent.includes(e.textContent))
+    var isToday = (new Date()).toDateString() === date.toDateString()
+    if (!alreadyInserted && !isToday) el.parentNode.insertBefore(daterow, el)
+  })
+</script>
+
+<script>
+  var downloadChart = new Chart('downloadChart', {
+    type: 'bar',
+    data: {
+      labels: <%= @results.reverse.last(20).map { |r| Time.parse(r['timestamp']).getlocal.strftime('%H:%M') }.to_json %>,
+      datasets: [{
+        pointHitRadius: 200,
+        label: 'Download (Mbps)',
+        data: <%= @results.reverse.last(20).map { |r| (r['download'] / 1024 / 1024).to_i }.to_json %>,
+        backgroundColor: 'rgba(50, 240, 240, 0.9)',
+        fill: false
+      }]
+    }
+  })
+
+  var uploadChart = new Chart('uploadChart', {
+    type: 'bar',
+    data: {
+      labels: <%= @results.reverse.last(20).map { |r| Time.parse(r['timestamp']).getlocal.strftime('%H:%M') }.to_json %>,
+      datasets: [{
+        label: 'Upload (Mbps)',
+        data: <%= @results.reverse.last(20).map { |r| (r['upload'] / 1024 / 1024).to_i }.to_json %>,
+        backgroundColor: 'rgba(240, 50, 240, 0.9)',
+        fill: false
+      }]
+    }
+  })
+
+  var latency = new Chart('latencyChart', {
+    type: 'bar',
+    data: {
+      labels: <%= @results.reverse.last(20).map { |r| Time.parse(r['timestamp']).getlocal.strftime('%H:%M') }.to_json %>,
+      datasets: [{
+        label: 'Latency (ms)',
+        data: <%= @results.reverse.last(20).map { |r| r['server']['latency'].to_i }.to_json %>,
+        backgroundColor: 'rgba(240, 240, 50, 0.9)',
+        fill: false
+      }]
+    }
+  })
+</script>
